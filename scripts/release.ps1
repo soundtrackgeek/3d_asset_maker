@@ -15,7 +15,11 @@ $notes = & "$PSScriptRoot\release-notes.ps1" -Version $Version   # throws if CHA
 $cargo = Get-Content Cargo.toml -Raw
 $cargo = [regex]::Replace($cargo, '(?m)^version = "[^"]+"', "version = `"$Version`"", 1)
 Set-Content Cargo.toml $cargo -NoNewline
-cargo update --workspace 2>&1 | Out-Null   # keep Cargo.lock in step with the new version
+# keep Cargo.lock in step with the new version (cargo logs to stderr, which "Stop" would treat as fatal)
+$ErrorActionPreference = "Continue"
+cargo update --workspace
+$ErrorActionPreference = "Stop"
+if ($LASTEXITCODE -ne 0) { throw "cargo update failed" }
 
 # 2. local build only when -Local (CI does it otherwise)
 if ($Local) {

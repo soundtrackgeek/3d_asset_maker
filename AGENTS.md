@@ -20,7 +20,7 @@
 
 4. **Publish the .exe for every version bump**:
    - Run `powershell -File scripts/release.ps1 -Version X.Y.Z` (CHANGELOG.md must already contain a `## [X.Y.Z]` section).
-   - It builds release binaries, commits, tags `vX.Y.Z`, pushes, and builds the NSIS installer (needs `cargo install tauri-cli --version "^2"`), and creates a GitHub Release with `TRELLIS-Studio-Setup.exe` and `t2.exe` attached. The updater looks for the `*-Setup.exe` asset name, so keep it. The in-app updater reads this release, so never skip it. Binaries live in Releases, not in git history.
+   - It bumps the version, commits, tags `vX.Y.Z` and pushes. The `Release` GitHub Actions workflow then builds the NSIS installer on a clean runner and creates the GitHub Release with `TRELLIS-Studio-Setup.exe` and `t2.exe` attached; the script waits for it. `-Local` builds and publishes from this PC instead (needs `cargo install tauri-cli --version "^2"`). The updater looks for the `*-Setup.exe` asset name, so keep it. The in-app updater reads this release, so never skip it. Binaries live in Releases, not in git history.
 
 5. **Run `cargo clean` after every push** (`scripts/release.ps1` does this automatically). The `target/` folder is large; do not leave it around.
 
