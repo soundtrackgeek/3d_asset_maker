@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>TRELLIS.2 Studio</title>
+<link rel="stylesheet" href="style.css" />
+<script type="module" src="vendor/model-viewer.min.js"></script>
+</head>
+<body>
+<header>
+  <div class="brand">TRELLIS<span>.2</span> Studio <small id="ver"></small></div>
+  <div id="status-pills">
+    <span class="pill" id="pill-gpu">GPU …</span>
+    <span class="pill" id="pill-rt">runtime …</span>
+    <span class="pill" id="pill-hf">HF token …</span>
+  </div>
+  <div class="spacer"></div>
+  <div id="update-banner" hidden></div>
+  <button id="btn-update" title="Check GitHub Releases for a newer version">Check for updates</button>
+  <button id="btn-doctor">Setup &amp; diagnostics</button>
+</header>
+
+<main>
+  <aside id="queue-pane">
+    <div id="dropzone">
+      <b>Drop images here</b>
+      <span>or</span>
+      <label class="btn">Choose images<input id="file-input" type="file" accept="image/png,image/jpeg,image/webp" multiple hidden /></label>
+      <small>PNG / JPG / WebP. One object per image, clean background works best.</small>
+    </div>
+    <div id="jobs"></div>
+  </aside>
+
+  <section id="stage-pane">
+    <div id="viewer-wrap">
+      <model-viewer id="viewer" camera-controls auto-rotate shadow-intensity="1" exposure="1.1" hidden></model-viewer>
+      <img id="input-preview" alt="" hidden />
+      <div id="stage-empty">Select a job, or drop an image to begin.</div>
+    </div>
+    <div id="job-detail"></div>
+  </section>
+
+  <aside id="options-pane">
+    <h3>Generation</h3>
+    <label>Preset
+      <select id="o-preset"></select>
+    </label>
+    <p id="preset-desc" class="hint"></p>
+    <label>Target engine
+      <select id="o-engine"></select>
+    </label>
+    <p id="engine-desc" class="hint"></p>
+    <label>Pipeline resolution
+      <select id="o-resolution">
+        <option value="512">512 (fast)</option>
+        <option value="1024">1024</option>
+        <option value="1024_cascade">1024 cascade (balanced)</option>
+        <option value="1536_cascade">1536 cascade (VRAM heavy)</option>
+      </select>
+    </label>
+    <div class="row">
+      <label>Seed <input id="o-seed" type="number" min="0" /></label>
+      <label class="check"><input id="o-random" type="checkbox" /> Random</label>
+    </div>
+
+    <h3>Mesh &amp; texture</h3>
+    <label>Triangle budget <input id="o-decimation" type="number" min="1000" step="1000" /></label>
+    <label>Texture size
+      <select id="o-texsize"><option>1024</option><option>2048</option><option>4096</option><option>8192</option></select>
+    </label>
+    <label class="check"><input id="o-remesh" type="checkbox" /> Remesh (cleaner topology)</label>
+    <label class="check"><input id="o-webp" type="checkbox" /> WebP textures (smaller; not all engines)</label>
+    <div class="formats">Formats:
+      <label class="check"><input type="checkbox" class="o-fmt" value="glb" /> GLB</label>
+      <label class="check"><input type="checkbox" class="o-fmt" value="obj" /> OBJ</label>
+      <label class="check"><input type="checkbox" class="o-fmt" value="ply" /> PLY</label>
+    </div>
+
+    <h3>16 GB GPU</h3>
+    <label class="check"><input id="o-lowvram" type="checkbox" /> Low-VRAM offloading</label>
+    <label class="check"><input id="o-bg" type="checkbox" /> Remove background (needs HF token)</label>
+    <label>Max tokens <input id="o-tokens" type="number" min="4096" step="1024" /></label>
+    <label>Attention backend
+      <select id="o-attn"><option value="sdpa">sdpa (Windows default)</option><option value="flash_attn">flash_attn</option><option value="xformers">xformers</option></select>
+    </label>
+
+    <details>
+      <summary>Advanced samplers</summary>
+      <div id="samplers"></div>
+    </details>
+
+    <label class="check mock"><input id="o-mock" type="checkbox" /> Mock backend (no GPU, placeholder cube)</label>
+    <button id="btn-generate" class="primary">Generate selected</button>
+    <button id="btn-generate-all">Queue all new</button>
+  </aside>
+</main>
+
+<dialog id="doctor-dialog">
+  <h2>Setup &amp; diagnostics</h2>
+  <div id="doctor-body"></div>
+  <pre id="setup-log" hidden></pre>
+  <div class="dlg-actions">
+    <button id="btn-install">Install TRELLIS.2 runtime</button>
+    <button id="btn-doctor-refresh">Re-check</button>
+    <button id="btn-doctor-close">Close</button>
+  </div>
+</dialog>
+
+<script src="app.js"></script>
+</body>
+</html>

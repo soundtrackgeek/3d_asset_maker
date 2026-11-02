@@ -1,0 +1,14 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "TRELLIS Studio",
+  "identifier": "com.soundtrackgeek.trellisstudio",
+  "build": { "frontendDist": "../ui" },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      { "title": "TRELLIS.2 Studio", "width": 1320, "height": 840, "minWidth": 1000, "minHeight": 640 }
+    ],
+    "security": { "csp": null }
+  },
+  "bundle": { "active": false, "icon": ["icons/icon.ico"] }
+}

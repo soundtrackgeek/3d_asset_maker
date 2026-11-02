@@ -1,0 +1,19 @@
+[package]
+name = "trellis-studio"
+version.workspace = true
+edition.workspace = true
+description = "TRELLIS.2 Studio - image to 3D game assets"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+trellis-core = { path = "../crates/core" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+base64 = "0.22"
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
