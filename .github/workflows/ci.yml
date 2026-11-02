@@ -1,0 +1,25 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Unit tests
+        run: cargo test -p trellis-core
+      - name: Build CLI and app, then smoke-test the mock backend
+        shell: pwsh
+        run: |
+          cargo build --release -p trellis-studio-cli
+          cargo build --release
+          $env:TRELLIS_STUDIO_HOME = "$PWD\ci-home"
+          $r = ./target/release/t2.exe generate samples/chest.png --mock --format glb,obj --out ci-out -q | ConvertFrom-Json
+          if ($r.results[0].status -ne "done") { throw "mock generate failed: $($r | ConvertTo-Json -Depth 5)" }
+          if (-not (Test-Path ci-out/chest/model.glb)) { throw "model.glb missing" }

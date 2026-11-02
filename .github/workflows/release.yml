@@ -1,0 +1,61 @@
+name: Release
+
+# Tag push (vX.Y.Z) builds the installer and publishes the GitHub Release the in-app updater reads.
+# Manual run (workflow_dispatch) builds only and uploads the files as a workflow artifact (dry run).
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install tauri-cli
+        shell: pwsh
+        run: |
+          if (-not (Get-Command cargo-tauri -ErrorAction SilentlyContinue)) {
+            cargo install tauri-cli --version "^2" --locked
+          }
+
+      - name: Tag matches Cargo.toml version
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}".TrimStart('v')
+          $ver = [regex]::Match((Get-Content Cargo.toml -Raw), '(?m)^version = "([^"]+)"').Groups[1].Value
+          if ($tag -ne $ver) { throw "Tag v$tag does not match Cargo.toml version $ver" }
+
+      - name: Build installer and CLI
+        shell: pwsh
+        run: ./scripts/build-dist.ps1
+
+      - name: Upload build artifacts (dry run)
+        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/*
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $tag = "${{ github.ref_name }}"
+          ./scripts/release-notes.ps1 -Version $tag.TrimStart('v') | Set-Content notes.md
+          if (gh release view $tag 2>$null) {
+            gh release upload $tag dist/TRELLIS-Studio-Setup.exe dist/t2.exe --clobber
+          } else {
+            gh release create $tag dist/TRELLIS-Studio-Setup.exe dist/t2.exe --title $tag --notes-file notes.md
+          }

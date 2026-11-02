@@ -6,7 +6,7 @@ Outputs target **three.js, Unity (glTFast), Unreal Engine (Interchange glTF), Go
 
 ## Install
 
-Run `TRELLIS-Studio-Setup.exe` from the [latest release](https://github.com/soundtrackgeek/3d_asset_maker/releases/latest). It installs per user (no admin rights) to `%LOCALAPPDATA%\Programs\TRELLIS Studio`, creates shortcuts, and adds the folder to your `PATH` so `t2` works in any new shell. The release also has a standalone `t2.exe` for headless or CI machines.
+Run `TRELLIS-Studio-Setup.exe` from the [latest release](https://github.com/soundtrackgeek/3d_asset_maker/releases/latest). It installs per user (no admin rights) to `%LOCALAPPDATA%\TRELLIS Studio` (you can pick another folder; reinstalls reuse the last one), creates shortcuts, and adds the folder to your `PATH` so `t2` works in any new shell. The release also has a standalone `t2.exe` for headless or CI machines.
 
 The app checks for new releases on start, every 30 minutes, and via **Check for updates**; **Download & install** fetches and runs the new installer (`t2 update install` does the same silently).
 
@@ -58,6 +58,8 @@ cargo build --release      # target\release\trellis-studio.exe and t2.exe
 cargo test -p trellis-core
 cargo install tauri-cli --version "^2"   # once, for the installer
 cargo tauri build --bundles nsis         # target\release\bundle\nsis\*-setup.exe
+powershell -File scripts\build-dist.ps1  # both of the above into dist\ (what CI runs)
+powershell -File scripts\release.ps1 -Version X.Y.Z   # bump, tag, push; GitHub Actions publishes the Release
 ```
 
 Layout: `crates/core` (shared engine, Python worker, installer), `crates/cli` (`t2`), `src-tauri` (GUI), `ui/` (plain HTML/JS). Releases: `scripts/release.ps1 -Version X.Y.Z`. See `AGENTS.md` for the workflow.

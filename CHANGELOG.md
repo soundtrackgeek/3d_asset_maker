@@ -2,6 +2,18 @@
 
 All notable changes to this project are documented here. Format: [Keep a Changelog](https://keepachangelog.com/), versioning: [SemVer](https://semver.org/).
 
+## [0.2.1] - 2026-11-02
+
+### Added
+- GitHub Actions: `release.yml` builds the installer on a clean Windows runner and publishes the Release when a `vX.Y.Z` tag is pushed (manual runs are a dry run that uploads artifacts); `ci.yml` runs unit tests, builds, and smoke-tests the mock backend on every push and PR.
+- `scripts/build-dist.ps1` and `scripts/release-notes.ps1`, shared by CI and the local release script.
+
+### Changed
+- `scripts/release.ps1` now bumps, commits, tags and pushes, then waits for CI to publish. `-Local` keeps the old build-and-publish-from-this-PC behaviour as a fallback.
+
+### Fixed
+- README stated the wrong default install folder; it is `%LOCALAPPDATA%\TRELLIS Studio`. The installer remembers the last folder in the registry (standard Tauri behaviour), so reinstalls reuse it.
+
 ## [0.2.0] - 2026-11-02
 
 ### Added
