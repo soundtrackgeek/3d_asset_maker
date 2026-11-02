@@ -7,7 +7,7 @@ pub struct UpdateInfo {
     pub latest: String,
     pub available: bool,
     pub release_url: String,
-    /// Direct download of the .exe asset, if the release has one.
+    /// Direct download of the installer (`*-Setup.exe`), if the release has one.
     pub download_url: Option<String>,
     pub notes: String,
 }
@@ -47,7 +47,7 @@ pub fn check() -> Result<UpdateInfo> {
     let tag = v["tag_name"].as_str().ok_or_else(|| anyhow!("release has no tag_name"))?.to_string();
     let download_url = v["assets"].as_array().and_then(|a| {
         a.iter()
-            .find(|x| x["name"].as_str().is_some_and(|n| n.to_lowercase().ends_with(".exe") && !n.starts_with("t2")))
+            .find(|x| x["name"].as_str().is_some_and(|n| n.to_lowercase().ends_with("-setup.exe")))
             .and_then(|x| x["browser_download_url"].as_str().map(String::from))
     });
     Ok(UpdateInfo {
@@ -58,6 +58,29 @@ pub fn check() -> Result<UpdateInfo> {
         download_url,
         notes: v["body"].as_str().unwrap_or_default().to_string(),
     })
+}
+
+/// Download the installer from this project's GitHub release and launch it.
+/// `silent` passes the NSIS `/S` flag (used by the CLI); the GUI shows the wizard.
+/// The caller should exit afterwards so the installer can replace the running exe.
+pub fn download_and_run_installer(url: &str, silent: bool) -> Result<std::path::PathBuf> {
+    let prefix = format!("https://github.com/{}/releases/download/", crate::REPO);
+    if !url.starts_with(&prefix) || !url.to_lowercase().ends_with("-setup.exe") {
+        return Err(anyhow!("refusing to run installer from untrusted url"));
+    }
+    let dest = crate::paths::home().join("tmp");
+    std::fs::create_dir_all(&dest)?;
+    let file = dest.join(url.rsplit('/').next().unwrap_or("TRELLIS-Studio-Setup.exe"));
+    let resp = ureq::get(url).set("User-Agent", "trellis-studio-updater").timeout(std::time::Duration::from_secs(600)).call()?;
+    let mut out = std::fs::File::create(&file)?;
+    std::io::copy(&mut resp.into_reader(), &mut out)?;
+    drop(out);
+    let mut cmd = std::process::Command::new(&file);
+    if silent {
+        cmd.arg("/S");
+    }
+    cmd.spawn().map_err(|e| anyhow!("cannot start installer: {e}"))?;
+    Ok(file)
 }
 
 #[cfg(test)]

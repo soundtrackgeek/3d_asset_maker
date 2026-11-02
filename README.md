@@ -6,7 +6,9 @@ Outputs target **three.js, Unity (glTFast), Unreal Engine (Interchange glTF), Go
 
 ## Install
 
-Download `TRELLIS-Studio.exe` (GUI) and `t2.exe` (CLI) from the [latest release](https://github.com/soundtrackgeek/3d_asset_maker/releases/latest). The GUI checks for new releases on start, every 30 minutes, and via **Check for updates**.
+Run `TRELLIS-Studio-Setup.exe` from the [latest release](https://github.com/soundtrackgeek/3d_asset_maker/releases/latest). It installs per user (no admin rights) to `%LOCALAPPDATA%\Programs\TRELLIS Studio`, creates shortcuts, and adds the folder to your `PATH` so `t2` works in any new shell. The release also has a standalone `t2.exe` for headless or CI machines.
+
+The app checks for new releases on start, every 30 minutes, and via **Check for updates**; **Download & install** fetches and runs the new installer (`t2 update install` does the same silently).
 
 ### TRELLIS.2 runtime (one time)
 
@@ -33,7 +35,8 @@ t2 generate a.png b.png --preset draft --seed 7 --no-bg-removal
 t2 generate x.png --options-file overrides.json   # any field from `t2 options`
 t2 generate x.png --mock                     # GPU-free dry run
 t2 jobs list | show <id> | delete <id>
-t2 update check
+t2 update check | install
+t2 path add|remove <dir>                     # user PATH edit used by the installer (backs up the old value)
 ```
 
 Each export folder contains `model.glb` (+ requested formats) and `asset.json` (options, seed, units, engine notes). `TRELLIS_STUDIO_HOME` moves the data folder (default `%LOCALAPPDATA%\TrellisStudio`).
@@ -53,6 +56,8 @@ Engine targets only ever lower the budget: `threejs` 150k/2K, `unity` and `godot
 ```powershell
 cargo build --release      # target\release\trellis-studio.exe and t2.exe
 cargo test -p trellis-core
+cargo install tauri-cli --version "^2"   # once, for the installer
+cargo tauri build --bundles nsis         # target\release\bundle\nsis\*-setup.exe
 ```
 
 Layout: `crates/core` (shared engine, Python worker, installer), `crates/cli` (`t2`), `src-tauri` (GUI), `ui/` (plain HTML/JS). Releases: `scripts/release.ps1 -Version X.Y.Z`. See `AGENTS.md` for the workflow.

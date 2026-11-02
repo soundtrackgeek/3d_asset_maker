@@ -11,3 +11,6 @@ dirs = "5"
 imagesize = "0.13"
 ureq = { version = "2", features = ["json"] }
 rand = "0.8"
+
+[target.'cfg(windows)'.dependencies]
+winreg = "0.52"

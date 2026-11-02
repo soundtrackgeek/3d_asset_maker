@@ -10,5 +10,21 @@
     ],
     "security": { "csp": null }
   },
-  "bundle": { "active": false, "icon": ["icons/icon.ico"] }
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "icon": ["icons/icon.ico"],
+    "publisher": "soundtrackgeek",
+    "shortDescription": "Image to 3D game assets with TRELLIS.2",
+    "resources": { "../target/release/t2.exe": "t2.exe" },
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser",
+        "installerIcon": "icons/icon.ico",
+        "installerHooks": "installer-hooks.nsh",
+        "startMenuFolder": "TRELLIS Studio",
+        "displayLanguageSelector": false
+      }
+    }
+  }
 }

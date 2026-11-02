@@ -201,6 +201,16 @@ async fn check_update() -> Res<Value> {
         .map_err(err)?
 }
 
+/// Download the new installer, launch it, and quit so it can replace our files.
+#[tauri::command]
+async fn install_update(app: AppHandle, url: String) -> Res<()> {
+    tauri::async_runtime::spawn_blocking(move || update::download_and_run_installer(&url, false).map(|_| ()).map_err(err))
+        .await
+        .map_err(err)??;
+    app.exit(0);
+    Ok(())
+}
+
 #[tauri::command]
 async fn install_runtime(app: AppHandle) -> Res<()> {
     tauri::async_runtime::spawn_blocking(move || {
@@ -232,6 +242,7 @@ fn main() {
             reveal_job,
             open_url,
             check_update,
+            install_update,
             install_runtime
         ])
         .run(tauri::generate_context!())

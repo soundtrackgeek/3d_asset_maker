@@ -30,6 +30,11 @@ enum Cmd {
         #[command(subcommand)]
         cmd: JobsCmd,
     },
+    /// Add/remove a folder on the user PATH (used by the installer; backs up the old value).
+    Path {
+        #[command(subcommand)]
+        cmd: PathCmd,
+    },
     /// Check GitHub Releases for a newer version.
     Update {
         #[command(subcommand)]
@@ -45,8 +50,16 @@ enum JobsCmd {
 }
 
 #[derive(Subcommand)]
+enum PathCmd {
+    Add { dir: String },
+    Remove { dir: String },
+}
+
+#[derive(Subcommand)]
 enum UpdateCmd {
     Check,
+    /// Download the latest installer and run it silently (the CLI exits first on Windows installs).
+    Install,
 }
 
 #[derive(Args)]
@@ -211,7 +224,25 @@ fn run() -> Result<(Value, i32)> {
                 (json!({"deleted": id}), 0)
             }
         },
+        Cmd::Path { cmd } => {
+            let (dir, add) = match cmd {
+                PathCmd::Add { dir } => (dir, true),
+                PathCmd::Remove { dir } => (dir, false),
+            };
+            (json!({"result": trellis_core::winpath::edit(&dir, add)?, "dir": dir}), 0)
+        }
         Cmd::Update { cmd: UpdateCmd::Check } => (serde_json::to_value(update::check()?)?, 0),
+        Cmd::Update { cmd: UpdateCmd::Install } => {
+            let u = update::check()?;
+            match (u.available, &u.download_url) {
+                (true, Some(url)) => {
+                    let f = update::download_and_run_installer(url, true)?;
+                    (json!({"installing": u.latest, "installer": f}), 0)
+                }
+                (true, None) => return Err(anyhow!("release {} has no installer asset", u.latest)),
+                _ => (json!({"installing": null, "message": "already up to date", "current": u.current}), 0),
+            }
+        }
     })
 }
 

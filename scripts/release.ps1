@@ -17,13 +17,18 @@ $cargo = Get-Content Cargo.toml -Raw
 $cargo = [regex]::Replace($cargo, '(?m)^version = "[^"]+"', "version = `"$Version`"", 1)
 Set-Content Cargo.toml $cargo -NoNewline
 
-# 2. build
+# 2. build: t2.exe first (the installer bundles it), then the NSIS installer (needs `cargo install tauri-cli --version "^2"`)
+cargo build --release -p trellis-studio-cli
+if ($LASTEXITCODE -ne 0) { throw "cli build failed" }
 cargo build --release
 if ($LASTEXITCODE -ne 0) { throw "build failed" }
+cargo tauri build --bundles nsis
+if ($LASTEXITCODE -ne 0) { throw "installer build failed" }
 
-# 3. collect exe files
+# 3. collect release files
 New-Item -ItemType Directory -Force dist | Out-Null
-Copy-Item target\release\trellis-studio.exe dist\TRELLIS-Studio.exe -Force
+$setup = Get-ChildItem target\release\bundle\nsis\*-setup.exe | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+Copy-Item $setup.FullName dist\TRELLIS-Studio-Setup.exe -Force
 Copy-Item target\release\t2.exe dist\t2.exe -Force
 
 # 4. commit, tag, push
@@ -36,7 +41,7 @@ git push origin "v$Version"
 # 5. publish the exe files as GitHub Release assets (keeps the git history free of binaries)
 $notesFile = New-TemporaryFile
 Set-Content $notesFile $notes
-gh release create "v$Version" dist\TRELLIS-Studio.exe dist\t2.exe --title "v$Version" --notes-file $notesFile
+gh release create "v$Version" dist\TRELLIS-Studio-Setup.exe dist\t2.exe --title "v$Version" --notes-file $notesFile
 Remove-Item $notesFile
 
 # 6. AGENTS.md rule: cargo clean after pushing

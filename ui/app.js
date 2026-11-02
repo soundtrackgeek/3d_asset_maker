@@ -211,8 +211,12 @@ async function checkUpdate(manual) {
     const b = $("#update-banner");
     if (u.available) {
       b.hidden = false;
-      b.innerHTML = `Update ${esc(u.latest)} available <a id="upd-dl">Download</a> <a id="upd-notes">Release notes</a>`;
-      $("#upd-dl").onclick = () => invoke("open_url", { url: u.download_url || u.release_url });
+      b.innerHTML = `Update ${esc(u.latest)} available <a id="upd-dl">${u.download_url ? "Download &amp; install" : "Download"}</a> <a id="upd-notes">Release notes</a>`;
+      $("#upd-dl").onclick = async () => {
+        if (!u.download_url) return invoke("open_url", { url: u.release_url });
+        b.textContent = "Downloading installer…";
+        try { await invoke("install_update", { url: u.download_url }); } catch (e) { b.textContent = "Update failed: " + e; }
+      };
       $("#upd-notes").onclick = () => invoke("open_url", { url: u.release_url });
     } else {
       b.hidden = !manual;

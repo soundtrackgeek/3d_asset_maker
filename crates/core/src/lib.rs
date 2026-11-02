@@ -8,6 +8,7 @@ pub mod paths;
 pub mod runner;
 pub mod setup;
 pub mod update;
+pub mod winpath;
 
 pub const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub const REPO: &str = "soundtrackgeek/3d_asset_maker";
