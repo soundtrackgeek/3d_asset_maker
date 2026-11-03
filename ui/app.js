@@ -3,7 +3,7 @@ const { listen } = window.__TAURI__.event;
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
-const state = { jobs: new Map(), selected: null, opts: null, presets: [], engines: [], thumbs: new Map(), update: null };
+const state = { jobs: new Map(), selected: null, opts: null, presets: [], engines: [], thumbs: new Map(), candView: new Map(), update: null };
 const UPDATE_INTERVAL_MS = 30 * 60 * 1000;
 
 // ---------- options form ----------
@@ -26,6 +26,7 @@ function fillForm() {
   $("#o-resolution").value = o.resolution;
   $("#o-seed").value = o.seed;
   $("#o-random").checked = o.randomize_seed;
+  $("#o-tries").value = o.seed_tries;
   $("#o-decimation").value = o.decimation_target;
   $("#o-texsize").value = String(o.texture_size);
   $("#o-remesh").checked = o.remesh;
@@ -50,6 +51,7 @@ function bindForm() {
   bind("#o-resolution", "resolution");
   bind("#o-seed", "seed", Number);
   bind("#o-random", "randomize_seed");
+  bind("#o-tries", "seed_tries", (v) => Math.min(8, Math.max(1, Number(v) || 1)));
   bind("#o-decimation", "decimation_target", Number);
   bind("#o-texsize", "texture_size", Number);
   bind("#o-remesh", "remesh");
@@ -83,20 +85,23 @@ function bindForm() {
 const useMock = () => $("#o-mock").checked;
 
 // ---------- jobs ----------
-async function thumb(job) {
-  if (!state.thumbs.has(job.id)) {
-    state.thumbs.set(job.id, null);
-    try {
-      state.thumbs.set(job.id, await invoke("read_asset", { id: job.id, kind: "input", file: null }));
-      renderJobs();
-    } catch {}
+const thumbLoads = new Map();
+// Resolves to the job's input image as a data URL (cached). Callers can await it, so the preview never
+// renders an empty <img> while the first load is still in flight.
+function thumb(job) {
+  if (state.thumbs.get(job.id)) return Promise.resolve(state.thumbs.get(job.id));
+  if (!thumbLoads.has(job.id)) {
+    thumbLoads.set(job.id, invoke("read_asset", { id: job.id, kind: "input", file: null })
+      .then((url) => { state.thumbs.set(job.id, url); renderJobs(); return url; })
+      .catch(() => null)
+      .finally(() => thumbLoads.delete(job.id)));
   }
-  return state.thumbs.get(job.id);
+  return thumbLoads.get(job.id);
 }
 
 function renderJobs() {
   const list = [...state.jobs.values()].sort((a, b) => b.created - a.created);
-  list.forEach((j) => { if (!state.thumbs.has(j.id)) thumb(j); });
+  list.forEach((j) => { if (!state.thumbs.get(j.id)) thumb(j); });
   $("#jobs").innerHTML = list.map((j) => {
     const t = state.thumbs.get(j.id);
     return `<div class="job ${j.id === state.selected ? "sel" : ""}" data-id="${esc(j.id)}">
@@ -124,31 +129,51 @@ async function renderStage() {
     return;
   }
   $("#stage-empty").hidden = true;
-  const glb = j.outputs.find((f) => f.endsWith(".glb"));
+  const glb = j.outputs.includes("model.glb") ? "model.glb" : j.outputs.find((f) => f.endsWith(".glb"));
   if (j.status === "done" && glb) {
     img.hidden = true;
     viewer.hidden = false;
-    if (viewer.dataset.key !== j.id + j.elapsed_secs) {
-      viewer.dataset.key = j.id + j.elapsed_secs;
-      viewer.src = await invoke("read_asset", { id: j.id, kind: "output", file: glb });
+    const shown = (state.candView.get(j.id) || glb);
+    const key = j.id + j.elapsed_secs + shown;
+    if (viewer.dataset.key !== key) {
+      viewer.dataset.key = key;
+      viewer.src = await invoke("read_asset", { id: j.id, kind: "output", file: shown });
     }
   } else {
     viewer.hidden = true;
-    img.hidden = false;
-    img.src = (await thumb(j)) || "";
+    const url = await thumb(j);
+    if (state.selected !== j.id) return; // user switched jobs while the image loaded
+    img.hidden = !url;
+    if (url) img.src = url;
   }
   $("#job-detail").innerHTML = `
     <b>${esc(j.name)}</b> <span class="st-${j.status}">${j.status}</span> — ${esc(j.stage)}
-    · ${j.options.resolution} · seed ${j.options.seed} · ${j.options.texture_size}px · ${j.options.decimation_target.toLocaleString()} tris
+    · ${j.options.resolution} · seed ${j.options.seed}${j.candidates && j.candidates.length ? ` (best of ${j.candidates.length}: ${j.candidates.map((c) => `${c.seed}→${c.score}`).join(", ")})` : ""} · ${j.options.texture_size}px · ${j.options.decimation_target.toLocaleString()} tris
     ${j.mock ? " · <i>mock</i>" : ""} ${j.elapsed_secs ? ` · ${j.elapsed_secs.toFixed(0)}s` : ""} ${j.peak_vram_mb ? ` · peak VRAM ${(j.peak_vram_mb / 1024).toFixed(1)} GB` : ""}
     ${j.error ? `<pre>${esc(j.error)}</pre>` : ""}
     ${j.outputs.length ? `<div class="hint">Files: ${j.outputs.map(esc).join(", ")}, asset.json</div>` : ""}
+    ${j.candidates && j.candidates.length > 1 && j.status === "done" ? `<div class="actions" id="cands">Seeds:
+      ${j.candidates.map((c) => `<button data-file="${esc(c.file)}" data-seed="${c.seed}" class="${(state.candView.get(j.id) || "model.glb") === c.file ? "primary" : ""}">${c.seed}</button>`).join("")}
+      <button id="d-use" ${state.candView.get(j.id) ? "" : "disabled"} title="Copy the seed you are viewing to model.glb">Use as model.glb</button></div>` : ""}
     <div class="actions">
       <button id="d-run" ${j.status === "running" ? "disabled" : ""}>${j.status === "done" ? "Regenerate with current options" : "Generate"}</button>
       <button id="d-cancel" ${j.status === "running" || j.status === "queued" ? "" : "disabled"}>Cancel</button>
       <button id="d-open" ${j.outputs.length ? "" : "disabled"}>Open output folder</button>
       <button id="d-del">Delete</button>
     </div>`;
+  document.querySelectorAll("#cands [data-file]").forEach((b) => (b.onclick = () => {
+    state.candView.set(j.id, b.dataset.file);
+    renderStage();
+  }));
+  if ($("#d-use")) $("#d-use").onclick = async () => {
+    const f = state.candView.get(j.id);
+    const seed = Number(j.candidates.find((c) => c.file === f).seed);
+    state.jobs.set(j.id, await invoke("use_candidate", { id: j.id, seed }));
+    state.candView.delete(j.id);
+    viewer.dataset.key = "";
+    renderJobs();
+    renderStage();
+  };
   $("#d-run").onclick = () => runJob(j.id);
   $("#d-cancel").onclick = () => invoke("cancel_job", { id: j.id });
   $("#d-open").onclick = () => invoke("reveal_job", { id: j.id });

@@ -34,6 +34,9 @@ pub struct Job {
     /// Peak GPU memory reserved by the worker (MiB), reported after sampling.
     #[serde(default)]
     pub peak_vram_mb: Option<u32>,
+    /// Seeds tried when `seed_tries > 1`: `{seed, file}`; any of them can be promoted to `model.glb`.
+    #[serde(default)]
+    pub candidates: Vec<serde_json::Value>,
 }
 
 pub fn now() -> u64 {
@@ -94,6 +97,7 @@ pub fn create(src: &Path, options: GenOptions, mock: bool) -> Result<Job> {
         outputs: vec![],
         elapsed_secs: 0.0,
         peak_vram_mb: None,
+        candidates: vec![],
     };
     job.save()?;
     Ok(job)
@@ -122,6 +126,19 @@ pub fn delete(id: &str) -> Result<()> {
     }
     std::fs::remove_dir_all(paths::jobs_dir().join(id))?;
     Ok(())
+}
+
+/// Make one of a multi-seed job's candidates the job's `model.glb` (extra formats such as OBJ/PLY are not regenerated).
+pub fn use_candidate(id: &str, seed: u64) -> Result<Job> {
+    let mut j = load(id)?;
+    let name = format!("model_seed{seed}.glb");
+    if !j.outputs.contains(&name) {
+        return Err(anyhow!("job {id} has no candidate for seed {seed}"));
+    }
+    std::fs::copy(j.out_dir().join(&name), j.out_dir().join("model.glb"))?;
+    j.options.seed = seed;
+    j.save()?;
+    Ok(j)
 }
 
 /// Jobs left running by a crash are marked failed on startup.

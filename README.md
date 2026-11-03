@@ -39,6 +39,8 @@ t2 options                                   # presets, engines, defaults (disco
 t2 doctor                                    # readiness + recommended preset
 t2 generate samples\chest.png --preset draft --engine unity --format glb,obj --out out
 t2 generate a.png b.png --preset draft --seed 7 --no-bg-removal
+t2 generate sword.png --tries 4                   # 4 seeds, all kept as model_seed<N>.glb
+t2 jobs use <job-id> 43                           # promote seed 43 to model.glb
 t2 generate x.png --options-file overrides.json   # any field from `t2 options`
 t2 generate x.png --mock                     # GPU-free dry run
 t2 jobs list | show <id> | delete <id>
@@ -55,6 +57,8 @@ Each export folder contains `model.glb` (+ requested formats) and `asset.json` (
 | `draft` | 512 | 1K | 50k | **default**. Measured on an RTX 4060 Ti 16 GB: ~106 s, 5.5 GB VRAM, 9 GB RAM peak |
 | `balanced` | 1024 cascade | 2K | 150k | needs a 24 GB+ card: on 16 GB the decode spills into system RAM (~473 s, ~18 GB RAM peak) |
 | `high` | 1536 cascade | 4K | 500k | 32 GB+ VRAM; will OOM on 16 GB |
+
+Thin or glassy objects (swords, crystals) can come out with stray sheets or strings for some seeds. Try another seed or use `--tries N` and pick the clean one.
 
 The worker is memory-guarded: it aborts with a clear error if its resident RAM passes 60% of the PC's RAM (override with `T2_MAX_RAM_MB`).
 

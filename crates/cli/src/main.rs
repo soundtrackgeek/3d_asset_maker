@@ -47,6 +47,8 @@ enum JobsCmd {
     List,
     Show { id: String },
     Delete { id: String },
+    /// Promote a candidate of a `--tries` job to model.glb.
+    Use { id: String, seed: u64 },
 }
 
 #[derive(Subcommand)]
@@ -80,6 +82,9 @@ struct GenArgs {
     seed: Option<u64>,
     #[arg(long)]
     randomize_seed: bool,
+    /// Try N consecutive seeds (1-8) and keep all results as model_seed<N>.glb (first one is model.glb); pick with `jobs use`.
+    #[arg(long)]
+    tries: Option<u32>,
     /// Target triangle count.
     #[arg(long)]
     decimate: Option<u32>,
@@ -128,6 +133,9 @@ fn build_options(a: &GenArgs) -> Result<options::GenOptions> {
         base.seed = s;
     }
     base.randomize_seed |= a.randomize_seed;
+    if let Some(t) = a.tries {
+        base.seed_tries = t;
+    }
     if let Some(d) = a.decimate {
         base.decimation_target = d;
     }
@@ -218,6 +226,7 @@ fn run() -> Result<(Value, i32)> {
         }
         Cmd::Jobs { cmd } => match cmd {
             JobsCmd::List => (json!({"jobs": job::list()}), 0),
+            JobsCmd::Use { id, seed } => (serde_json::to_value(job::use_candidate(&id, seed)?)?, 0),
             JobsCmd::Show { id } => (serde_json::to_value(job::load(&id)?)?, 0),
             JobsCmd::Delete { id } => {
                 job::delete(&id)?;

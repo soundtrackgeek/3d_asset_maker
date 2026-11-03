@@ -17,6 +17,7 @@ pub fn run(job: &mut Job, cancel: &AtomicBool, on_update: OnUpdate) -> Result<()
     job.status = Status::Running;
     job.error = None;
     job.outputs.clear();
+    job.candidates.clear();
     job.progress = 0.0;
     job.stage = "starting".into();
     update(job, on_update, start);
@@ -158,6 +159,10 @@ fn run_real(job: &mut Job, cancel: &AtomicBool, on_update: OnUpdate, start: Inst
                                 job.peak_vram_mb = v["peak_vram_mb"].as_u64().map(|m| m as u32);
                                 update(job, on_update, start);
                             }
+                            Some("candidate") => {
+                                job.candidates.push(json!({"seed": v["seed"], "file": v["file"]}));
+                                update(job, on_update, start);
+                            }
                             Some("error") => worker_error = v["message"].as_str().map(String::from),
                             _ => {}
                         }
@@ -248,6 +253,7 @@ fn write_manifest(job: &Job) -> Result<()> {
         "app_version": crate::APP_VERSION,
         "options": job.options,
         "files": job.outputs,
+        "seed_candidates": job.candidates,
         "units": "meters (glTF)",
         "up_axis": "Y (glTF)",
         "engine_notes": note,

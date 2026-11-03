@@ -274,63 +274,88 @@ def main():
     torch.cuda.reset_peak_memory_stats()
 
     image = Image.open(req["image"])
-    progress("generating (sparse structure -> shape -> texture)", 0.2)
+    tries = max(1, int(o.get("seed_tries") or 1))
+    base_seed = int(o["seed"])
 
-    kwargs = dict(
-        seed=int(o["seed"]),
-        preprocess_image=bool(o["preprocess_image"]),
-        pipeline_type=o["resolution"],
-        max_num_tokens=int(o["max_num_tokens"]),
-        sparse_structure_sampler_params=sampler(o.get("sparse_structure")),
-        shape_slat_sampler_params=sampler(o.get("shape")),
-        tex_slat_sampler_params=sampler(o.get("texture")),
-    )
-    # Tolerate API drift between TRELLIS.2 revisions.
-    accepted = set(inspect.signature(pipe.run).parameters)
-    kwargs = {k: v for k, v in kwargs.items() if k in accepted and v not in ({},)}
-
-    t0 = time.time()
-    try:
-        mesh = pipe.run(image, **kwargs)[0]
-    except torch.cuda.OutOfMemoryError:
-        emit(
-            event="error",
-            message="CUDA out of memory. On a 16 GB card use the 'draft' preset, "
-            "lower max_num_tokens, and close other GPU apps.",
+    def make_kwargs(seed):
+        kw = dict(
+            seed=seed,
+            preprocess_image=bool(o["preprocess_image"]),
+            pipeline_type=o["resolution"],
+            max_num_tokens=int(o["max_num_tokens"]),
+            sparse_structure_sampler_params=sampler(o.get("sparse_structure")),
+            shape_slat_sampler_params=sampler(o.get("shape")),
+            tex_slat_sampler_params=sampler(o.get("texture")),
         )
-        sys.exit(2)
-    progress(
-        "generation finished in %.0fs (peak VRAM: %d MiB live, %d MiB reserved)"
-        % (time.time() - t0, torch.cuda.max_memory_allocated() / 2**20, torch.cuda.max_memory_reserved() / 2**20),
-        0.75,
-    )
-    emit(
-        event="stat",
-        peak_vram_mb=int(torch.cuda.max_memory_reserved() / 2**20),
-        peak_ram_mb=PEAK_RAM[0],
-        peak_alloc_mb=int(torch.cuda.max_memory_allocated() / 2**20),
-        total_vram_mb=int(torch.cuda.get_device_properties(0).total_memory / 2**20),
-    )
+        # Tolerate API drift between TRELLIS.2 revisions.
+        accepted = set(inspect.signature(pipe.run).parameters)
+        return {k: v for k, v in kw.items() if k in accepted and v not in ({},)}
 
-    mesh.simplify(16777216)  # nvdiffrast limit
-    progress("baking GLB (decimate + remesh + textures)", 0.8)
-    glb = o_voxel.postprocess.to_glb(
-        vertices=mesh.vertices,
-        faces=mesh.faces,
-        attr_volume=mesh.attrs,
-        coords=mesh.coords,
-        attr_layout=mesh.layout,
-        voxel_size=mesh.voxel_size,
-        aabb=[[-0.5, -0.5, -0.5], [0.5, 0.5, 0.5]],
-        decimation_target=int(o["decimation_target"]),
-        texture_size=int(o["texture_size"]),
-        remesh=bool(o["remesh"]),
-        remesh_band=1,
-        remesh_project=0,
-        verbose=True,
-    )
+    results = []
+    for i in range(tries):
+        seed = base_seed + i
+        span = 0.7 / tries
+        progress("seed %d (%d/%d): generating" % (seed, i + 1, tries) if tries > 1
+                 else "generating (sparse structure -> shape -> texture)", 0.2 + span * i)
+        t0 = time.time()
+        try:
+            mesh = pipe.run(image, **make_kwargs(seed))[0]
+        except torch.cuda.OutOfMemoryError:
+            emit(
+                event="error",
+                message="CUDA out of memory. On a 16 GB card use the 'draft' preset, "
+                "lower max_num_tokens, and close other GPU apps.",
+            )
+            sys.exit(2)
+        progress(
+            "generation finished in %.0fs (peak VRAM: %d MiB live, %d MiB reserved)"
+            % (time.time() - t0, torch.cuda.max_memory_allocated() / 2**20, torch.cuda.max_memory_reserved() / 2**20),
+            0.2 + span * (i + 0.6),
+        )
+        emit(
+            event="stat",
+            peak_vram_mb=int(torch.cuda.max_memory_reserved() / 2**20),
+            peak_ram_mb=PEAK_RAM[0],
+            peak_alloc_mb=int(torch.cuda.max_memory_allocated() / 2**20),
+            total_vram_mb=int(torch.cuda.get_device_properties(0).total_memory / 2**20),
+        )
+
+        mesh.simplify(16777216)  # nvdiffrast limit
+        progress("baking GLB (decimate + remesh + textures)", 0.2 + span * (i + 0.8))
+        glb = o_voxel.postprocess.to_glb(
+            vertices=mesh.vertices,
+            faces=mesh.faces,
+            attr_volume=mesh.attrs,
+            coords=mesh.coords,
+            attr_layout=mesh.layout,
+            voxel_size=mesh.voxel_size,
+            aabb=[[-0.5, -0.5, -0.5], [0.5, 0.5, 0.5]],
+            decimation_target=int(o["decimation_target"]),
+            texture_size=int(o["texture_size"]),
+            remesh=bool(o["remesh"]),
+            remesh_band=1,
+            remesh_project=0,
+            verbose=True,
+        )
+        name = "model.glb" if tries == 1 else "model_seed%d.glb" % seed
+        glb_path = os.path.join(out_dir, name)
+        glb.export(glb_path, extension_webp=bool(o.get("webp_textures")))
+        del mesh, glb
+        gc.collect()
+        torch.cuda.empty_cache()
+        results.append((seed, name))
+        if tries > 1:
+            emit(event="candidate", seed=seed, file=name)
+
+    # No reliable automatic quality metric exists for these artifacts, so the first seed becomes model.glb and
+    # every candidate is kept for the user (or agent) to pick; `t2 jobs use <id> <seed>` promotes one.
     glb_path = os.path.join(out_dir, "model.glb")
-    glb.export(glb_path, extension_webp=bool(o.get("webp_textures")))
+    if tries > 1:
+        import shutil
+
+        shutil.copyfile(os.path.join(out_dir, results[0][1]), glb_path)
+        for _seed, _name in results:
+            emit(event="output", file=_name)
     emit(event="output", file="model.glb")
 
     extra = [f for f in o["formats"] if f != "glb"]

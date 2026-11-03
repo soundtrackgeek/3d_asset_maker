@@ -178,6 +178,11 @@ fn read_asset(id: String, kind: String, file: Option<String>) -> Res<String> {
 }
 
 #[tauri::command]
+fn use_candidate(id: String, seed: u64) -> Res<Job> {
+    job::use_candidate(&id, seed).map_err(err)
+}
+
+#[tauri::command]
 fn reveal_job(id: String) -> Res<()> {
     let j = job::load(&id).map_err(err)?;
     std::process::Command::new("explorer").arg(j.out_dir()).spawn().map_err(err)?;
@@ -240,6 +245,7 @@ fn main() {
             delete_job,
             read_asset,
             reveal_job,
+            use_candidate,
             open_url,
             check_update,
             install_update,

@@ -3791,7 +3791,7 @@ dependencies = [
 
 [[package]]
 name = "trellis-core"
-version = "0.2.2"
+version = "0.2.3"
 dependencies = [
  "anyhow",
  "dirs 5.0.1",
@@ -3806,7 +3806,7 @@ dependencies = [
 
 [[package]]
 name = "trellis-studio"
-version = "0.2.2"
+version = "0.2.3"
 dependencies = [
  "base64 0.22.1",
  "serde",
@@ -3818,7 +3818,7 @@ dependencies = [
 
 [[package]]
 name = "trellis-studio-cli"
-version = "0.2.2"
+version = "0.2.3"
 dependencies = [
  "anyhow",
  "clap",

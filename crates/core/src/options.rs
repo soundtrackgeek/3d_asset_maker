@@ -18,6 +18,8 @@ pub struct GenOptions {
     pub resolution: String,
     pub seed: u64,
     pub randomize_seed: bool,
+    /// Generate this many consecutive seeds and save every result as model_seed<N>.glb; the first becomes model.glb (1-8).
+    pub seed_tries: u32,
     /// Remove background before generation (needs gated RMBG model -> HF_TOKEN).
     pub preprocess_image: bool,
     pub max_num_tokens: u32,
@@ -65,6 +67,7 @@ pub fn preset(name: &str) -> Option<GenOptions> {
         resolution: res.into(),
         seed: 42,
         randomize_seed: false,
+        seed_tries: 1,
         preprocess_image: true,
         max_num_tokens: if name == "high" { 49152 } else { 32768 },
         low_vram: true,
@@ -106,6 +109,9 @@ pub fn apply_engine(o: &mut GenOptions, engine: &str) {
 pub fn validate(o: &GenOptions) -> Result<(), String> {
     if !["512", "1024", "1024_cascade", "1536_cascade"].contains(&o.resolution.as_str()) {
         return Err(format!("invalid resolution '{}'", o.resolution));
+    }
+    if !(1..=8).contains(&o.seed_tries) {
+        return Err("seed_tries must be between 1 and 8".into());
     }
     if !o.texture_size.is_power_of_two() || o.texture_size < 256 || o.texture_size > 8192 {
         return Err("texture_size must be a power of two between 256 and 8192".into());

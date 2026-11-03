@@ -2,6 +2,14 @@
 
 All notable changes to this project are documented here. Format: [Keep a Changelog](https://keepachangelog.com/), versioning: [SemVer](https://semver.org/).
 
+## [0.2.3] - 2026-11-03
+
+### Added
+- Multi-seed generation: `t2 generate ... --tries N` (UI: "Try seeds", 1-8) runs N consecutive seeds from the given seed on one model load and keeps every result as `model_seed<N>.glb` (the first is `model.glb`). TRELLIS.2 sometimes invents stray sheets and strings on thin or glassy objects depending on the seed; in the app you can flip between seeds under the viewer and press "Use as model.glb"; agents use `t2 jobs use <id> <seed>`. I tried automatic scoring (stretched triangles, silhouette overlap) but neither separated good from bad seeds, so selection stays manual.
+
+### Fixed
+- Dropping an image showed a broken-image icon instead of the preview until the job was selected again: the thumbnail was requested but the preview rendered before it arrived.
+
 ## [0.2.2] - 2026-11-03
 
 First release where real TRELLIS.2 generation works end to end on a 16 GB RTX 4060 Ti under Windows.
