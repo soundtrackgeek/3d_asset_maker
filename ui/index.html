@@ -55,7 +55,7 @@
       <select id="o-resolution">
         <option value="512">512 (fast)</option>
         <option value="1024">1024</option>
-        <option value="1024_cascade">1024 cascade (balanced)</option>
+        <option value="1024_cascade">1024 cascade (24 GB+ cards)</option>
         <option value="1536_cascade">1536 cascade (VRAM heavy)</option>
       </select>
     </label>
@@ -82,7 +82,7 @@
     <label class="check"><input id="o-bg" type="checkbox" /> Remove background (needs HF token)</label>
     <label>Max tokens <input id="o-tokens" type="number" min="4096" step="1024" /></label>
     <label>Attention backend
-      <select id="o-attn"><option value="sdpa">sdpa (Windows default)</option><option value="flash_attn">flash_attn</option><option value="xformers">xformers</option></select>
+      <select id="o-attn"><option value="xformers">xformers (Windows default)</option><option value="flash_attn">flash_attn (needs a flash-attn install)</option></select>
     </label>
 
     <details>

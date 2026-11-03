@@ -101,8 +101,10 @@ fn run_real(job: &mut Job, cancel: &AtomicBool, on_update: OnUpdate, start: Inst
     cmd.arg(&worker)
         .arg(&req_path)
         .env("PYTHONUNBUFFERED", "1")
+        .env("PYTHONFAULTHANDLER", "1") // native crashes (0xC0000005) get a Python stack in worker.log
         .env("PYTHONIOENCODING", "utf-8")
-        .env("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
+        // expandable_segments is not supported on Windows; these are, and curb fragmentation/over-reservation.
+        .env("PYTORCH_CUDA_ALLOC_CONF", if cfg!(windows) { "garbage_collection_threshold:0.8,max_split_size_mb:512" } else { "expandable_segments:True" })
         .env("ATTN_BACKEND", &job.options.attn_backend)
         .env("PYTHONPATH", &repo)
         .stdout(Stdio::piped())
@@ -111,7 +113,11 @@ fn run_real(job: &mut Job, cancel: &AtomicBool, on_update: OnUpdate, start: Inst
         cmd.env("HF_TOKEN", &t).env("HUGGING_FACE_HUB_TOKEN", t);
     }
     no_window(&mut cmd);
+    let limit = ram_limit_mb();
+    // The worker's own watchdog stops at `limit`; the job object cuts in a little later as a backstop.
+    cmd.env("T2_MAX_RAM_MB", limit.to_string());
     let mut child = cmd.spawn().map_err(|e| anyhow!("failed to start python worker: {e}"))?;
+    confine(&child, limit * 2); // commit backstop only; the worker watches resident RAM
     let stdout = child.stdout.take().unwrap();
     let (tx, rx) = mpsc::channel::<String>();
     std::thread::spawn(move || {
@@ -148,6 +154,10 @@ fn run_real(job: &mut Job, cancel: &AtomicBool, on_update: OnUpdate, start: Inst
                                     job.outputs.push(f.into());
                                 }
                             }
+                            Some("stat") => {
+                                job.peak_vram_mb = v["peak_vram_mb"].as_u64().map(|m| m as u32);
+                                update(job, on_update, start);
+                            }
                             Some("error") => worker_error = v["message"].as_str().map(String::from),
                             _ => {}
                         }
@@ -171,6 +181,50 @@ fn run_real(job: &mut Job, cancel: &AtomicBool, on_update: OnUpdate, start: Inst
     }
     Ok(())
 }
+
+/// RAM budget for the worker in MiB: `T2_MAX_RAM_MB`, else 60% of physical RAM (at least 8 GiB).
+fn ram_limit_mb() -> u64 {
+    if let Some(v) = std::env::var("T2_MAX_RAM_MB").ok().and_then(|v| v.parse().ok()) {
+        return v;
+    }
+    #[cfg(windows)]
+    unsafe {
+        use windows_sys::Win32::System::SystemInformation::{GlobalMemoryStatusEx, MEMORYSTATUSEX};
+        let mut m: MEMORYSTATUSEX = std::mem::zeroed();
+        m.dwLength = std::mem::size_of::<MEMORYSTATUSEX>() as u32;
+        if GlobalMemoryStatusEx(&mut m) != 0 {
+            return (m.ullTotalPhys / (1 << 20) * 60 / 100).max(8192);
+        }
+    }
+    16384
+}
+
+/// Hard backstop: put the worker in a Windows job object with a per-process commit limit
+/// (allocations fail instead of exhausting the PC) that also kills the worker if the host dies.
+#[cfg(windows)]
+fn confine(child: &std::process::Child, limit_mb: u64) {
+    use std::os::windows::io::AsRawHandle;
+    use windows_sys::Win32::System::JobObjects::*;
+    unsafe {
+        let job = CreateJobObjectW(std::ptr::null(), std::ptr::null());
+        if job.is_null() {
+            return;
+        }
+        let mut info: JOBOBJECT_EXTENDED_LIMIT_INFORMATION = std::mem::zeroed();
+        info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_PROCESS_MEMORY | JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+        info.ProcessMemoryLimit = (limit_mb as usize) << 20;
+        SetInformationJobObject(
+            job,
+            JobObjectExtendedLimitInformation,
+            &info as *const _ as *const _,
+            std::mem::size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
+        );
+        AssignProcessToJobObject(job, child.as_raw_handle() as _);
+        // handle intentionally leaked: closing it (host exit) kills the worker
+    }
+}
+#[cfg(not(windows))]
+fn confine(_child: &std::process::Child, _limit_mb: u64) {}
 
 #[cfg(windows)]
 pub fn no_window(cmd: &mut Command) {

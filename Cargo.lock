@@ -3791,7 +3791,7 @@ dependencies = [
 
 [[package]]
 name = "trellis-core"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "anyhow",
  "dirs 5.0.1",
@@ -3800,12 +3800,13 @@ dependencies = [
  "serde",
  "serde_json",
  "ureq",
+ "windows-sys 0.59.0",
  "winreg 0.52.0",
 ]
 
 [[package]]
 name = "trellis-studio"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "base64 0.22.1",
  "serde",
@@ -3817,7 +3818,7 @@ dependencies = [
 
 [[package]]
 name = "trellis-studio-cli"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "anyhow",
  "clap",
@@ -4370,6 +4371,15 @@ name = "windows-sys"
 version = "0.52.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "282be5f36a8ce781fad8c8ae18fa3f9beff57ec1b52cb3de0789201425d9a33d"
+dependencies = [
+ "windows-targets 0.52.6",
+]
+
+[[package]]
+name = "windows-sys"
+version = "0.59.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1e38bc4d79ed67fd075bcc251a1c39b32a1776bbe92e5bef1f0bf1f8c531853b"
 dependencies = [
  "windows-targets 0.52.6",
 ]

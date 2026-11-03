@@ -19,7 +19,14 @@ t2 setup      # or: GUI > Setup & diagnostics > Install
 t2 doctor     # verify GPU, runtime and HF token
 ```
 
-Requirements: NVIDIA driver, `git`, [`uv`](https://docs.astral.sh/uv/) (or the `py` launcher with Python 3.12), plus Visual Studio Build Tools (Desktop C++) and CUDA Toolkit 12.8 for the native extensions (nvdiffrast, CuMesh, FlexGEMM, o-voxel). The installer is best-effort and lists what failed. Some TRELLIS.2 pieces are gated on Hugging Face (background removal, DINOv3): put `HF_TOKEN=...` in `.env.local` next to the exe or in the working directory.
+Requirements you install yourself: an NVIDIA driver, `git`, [`uv`](https://docs.astral.sh/uv/) (or the `py` launcher with Python 3.12), and **Visual Studio Build Tools with the C++ workload** (2019 or 2022 preferred; the installer picks a supported one automatically).
+
+What setup does for you (about 1.2 GB of NVIDIA downloads plus roughly 10 GB for PyTorch and the model, 20-40 minutes the first time):
+- creates a Python 3.12 venv with PyTorch 2.6.0 (CUDA 12.4, the combination upstream tests) and xformers (the only attention backend usable on Windows for TRELLIS.2's sparse layers);
+- downloads the CUDA 12.4 compiler and dev libraries from NVIDIA into the app's data folder, with checksums, no admin rights and no system-wide install (an existing CUDA 12.x install is used if found);
+- builds nvdiffrast, nvdiffrec, CuMesh, FlexGEMM and o-voxel with a handful of small MSVC compatibility patches (upstream is Linux-only), then imports all of them to verify. Build logs are in `<data folder>\runtime\logs`.
+
+**Hugging Face:** put `HF_TOKEN=...` in `.env.local` (next to the exe or in the working directory). Two models are gated, so accept their licences with that account first: [facebook/dinov3-vitl16-pretrain-lvd1689m](https://huggingface.co/facebook/dinov3-vitl16-pretrain-lvd1689m) (required) and [briaai/RMBG-2.0](https://huggingface.co/briaai/RMBG-2.0) (background removal; if you have no access the worker falls back to the open `ZhengPeng7/BiRefNet`, same architecture).
 
 Until the runtime is installed, use `--mock` (GUI: "Mock backend") to exercise the full workflow with a placeholder cube.
 
@@ -30,7 +37,7 @@ Stdout is always one JSON document; progress goes to stderr. Exit codes: `0` ok,
 ```powershell
 t2 options                                   # presets, engines, defaults (discover capabilities)
 t2 doctor                                    # readiness + recommended preset
-t2 generate samples\chest.png --preset balanced --engine unity --format glb,obj --out out
+t2 generate samples\chest.png --preset draft --engine unity --format glb,obj --out out
 t2 generate a.png b.png --preset draft --seed 7 --no-bg-removal
 t2 generate x.png --options-file overrides.json   # any field from `t2 options`
 t2 generate x.png --mock                     # GPU-free dry run
@@ -45,9 +52,11 @@ Each export folder contains `model.glb` (+ requested formats) and `asset.json` (
 
 | Preset | Pipeline | Textures | Tris | Notes |
 |---|---|---|---|---|
-| `draft` | 512 | 1K | 50k | fast check |
-| `balanced` | 1024 cascade | 2K | 150k | default |
-| `high` | 1536 cascade | 4K | 500k | may OOM on 16 GB |
+| `draft` | 512 | 1K | 50k | **default**. Measured on an RTX 4060 Ti 16 GB: ~106 s, 5.5 GB VRAM, 9 GB RAM peak |
+| `balanced` | 1024 cascade | 2K | 150k | needs a 24 GB+ card: on 16 GB the decode spills into system RAM (~473 s, ~18 GB RAM peak) |
+| `high` | 1536 cascade | 4K | 500k | 32 GB+ VRAM; will OOM on 16 GB |
+
+The worker is memory-guarded: it aborts with a clear error if its resident RAM passes 60% of the PC's RAM (override with `T2_MAX_RAM_MB`).
 
 Engine targets only ever lower the budget: `threejs` 150k/2K, `unity` and `godot` 100k/2K, `unreal` 200k/4K.
 
@@ -66,6 +75,6 @@ Layout: `crates/core` (shared engine, Python worker, installer), `crates/cli` (`
 
 ## Status
 
-The queue, UI, CLI, updater and mock export are tested. The real TRELLIS.2 path (`worker.py`, `setup.ps1`) is written against the upstream API but has **not yet been run end to end on a 4060 Ti**; expect to adjust the installer and low-VRAM behaviour on first real run.
+Verified on an RTX 4060 Ti 16 GB (Windows 11): the full runtime install, and real image-to-3D generation through both the CLI and the GUI. `samples/chest.glb` is the real output of `t2 generate samples/chest.png --preset draft --engine unity` (48k triangles, 1024 px texture, about 5.5 minutes including model load); `samples/real-chest-viewer.png` shows it in the app.
 
 Sample inputs in `samples/` were generated with Codex image generation.

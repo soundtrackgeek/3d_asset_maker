@@ -27,7 +27,10 @@
 ## Project notes
 
 - Rust workspace: `crates/core` (shared engine), `crates/cli` (`t2` binary, agent-first, JSON on stdout), `src-tauri` (GUI), `ui/` (plain HTML/JS, no npm build).
-- Target hardware: RTX 4060 Ti 16 GB on Windows. Defaults must stay safe for 16 GB (SDPA attention, low-VRAM offload, 1024 cascade).
+- Target hardware: RTX 4060 Ti 16 GB on Windows. Defaults must stay safe for 16 GB (xformers attention, low-VRAM offload, `draft`/512 preset; the 1024 cascade overflows 16 GB VRAM at decode and peaks ~18 GB of system RAM). TRELLIS.2's sparse attention has no sdpa path, so never default to it.
+- Upstream TRELLIS.2 and its CUDA extensions are Linux-only. The MSVC compatibility patches live in `crates/core/python/setup.ps1` (`Apply-Patches`), applied to pristine checkouts. To iterate on one extension: `powershell -File crates/core/python/setup.ps1 -Root "$env:LOCALAPPDATA\TrellisStudio\runtime" -Only CuMesh`. `scripts/dev/nvcc-probe.ps1` compiles a tiny `.cu` in the same build environment to bisect compiler errors.
+- Version pins that matter: torch 2.6.0+cu124, transformers 4.x (5.x breaks DINOv3), xformers 0.0.29.post3 with triton-windows 3.2.x, CUDA 12.4 components.
+- Never use NSIS `ReadRegStr` to edit PATH (returns empty over ~1 KB); the installer calls `t2 path add|remove` instead.
 - `HF_TOKEN` lives in `.env.local` (git-ignored). Never print or commit it.
 - Test without a GPU using `t2 generate <img> --mock`.
 - Node comes from fnm if ever needed (see global notes); the project itself needs no Node.

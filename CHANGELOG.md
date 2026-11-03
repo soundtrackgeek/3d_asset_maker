@@ -2,6 +2,29 @@
 
 All notable changes to this project are documented here. Format: [Keep a Changelog](https://keepachangelog.com/), versioning: [SemVer](https://semver.org/).
 
+## [0.2.2] - 2026-11-03
+
+First release where real TRELLIS.2 generation works end to end on a 16 GB RTX 4060 Ti under Windows.
+
+### Fixed
+- Runtime install failed for all native extensions. The installer now loads the MSVC and CUDA build environment itself, clones with submodules at the versions upstream pins, builds with `--no-build-isolation --no-deps`, and verifies by importing everything.
+- No system CUDA Toolkit needed: the compiler and dev libraries (CUDA 12.4, checksum-verified) are downloaded from NVIDIA's redistributable zips into the app data folder. The full NVIDIA installer failed on this machine because of its bundled driver/ShadowPlay components.
+- Windows compile fixes for upstream sources, applied idempotently: CuMesh (`/permissive-` makes MSVC report `cuda` ambiguous with `c10::cuda`), FlexGEMM (`data_ptr<T>()` in a generic lambda), o-voxel (GCC-only `1e-6d` literals, narrowing `size_t` shapes, GCC-only compiler flags).
+- Pinned PyTorch 2.6.0+cu124 (tested upstream), `transformers` 4.x (5.x breaks DINOv3) and xformers 0.0.29 with matching `triton-windows` 3.2.
+- Default attention backend is now `xformers`. TRELLIS.2's sparse attention does not implement `sdpa`, so the previous default could never run.
+- Worker falls back to the open `ZhengPeng7/BiRefNet` background remover when the account has no access to the gated `briaai/RMBG-2.0`.
+
+### Changed
+- Default preset is now `draft` (512 pipeline). Measured on an RTX 4060 Ti 16 GB: 106 s, 5.5 GB VRAM, 9 GB RAM. `balanced` (1024 cascade) overflows 16 GB VRAM while decoding (27 GB reserved, ~18 GB RAM peak, 473 s), so it is now documented as a 24 GB+ preset and `t2 doctor` recommends it only from 22 GB.
+
+### Added
+- Memory guard: the worker aborts with a clear error when its resident RAM passes 60% of physical RAM (`T2_MAX_RAM_MB` overrides); the worker also runs in a Windows job object (commit backstop, killed with the host). Resident RAM is logged to `worker.log`.
+- Lower RAM use: flow models are loaded per stage and evicted afterwards (was all at once, ~17 GB), unused resolutions are not loaded, and models that can't be built lazily are built on the GPU so init temporaries never fragment the CPU heap.
+- Peak VRAM per job (`peak_vram_mb`, shown in the app), per-stage CUDA cache release, `PYTHONFAULTHANDLER` for native crash traces, and `scripts/dev/gen-with-vram.ps1`, `ram-profile.py`.
+- `t2 doctor` checks the CUDA toolkit, C++ build tools and whether the native extensions actually import; "ready" now requires that.
+- `setup.ps1 -Only <extension>` to rebuild a single extension, build logs in `runtime\logs`, and `scripts/dev/nvcc-probe.ps1` to bisect compiler errors.
+- `samples/chest.glb` (real output) and a viewer screenshot.
+
 ## [0.2.1] - 2026-11-02
 
 ### Added

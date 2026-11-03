@@ -23,7 +23,7 @@ pub struct GenOptions {
     pub max_num_tokens: u32,
     /// Offload sub-models to CPU between stages (essential on 16 GB).
     pub low_vram: bool,
-    /// sdpa | flash_attn | xformers
+    /// xformers | flash_attn. NB: TRELLIS.2 sparse attention has no sdpa path.
     pub attn_backend: String,
     pub sparse_structure: Sampler,
     pub shape: Sampler,
@@ -43,13 +43,13 @@ pub struct GenOptions {
 
 impl Default for GenOptions {
     fn default() -> Self {
-        preset("balanced").unwrap()
+        preset("draft").unwrap()
     }
 }
 
 pub const PRESETS: &[(&str, &str)] = &[
-    ("draft", "512 pipeline, 1K textures. Fast sanity check."),
-    ("balanced", "1024 cascade, 2K textures. Recommended for 16 GB cards."),
+    ("draft", "512 pipeline, 1K textures. Default: ~2 min, ~6 GB VRAM, ~9 GB RAM on a 16 GB card."),
+    ("balanced", "1024 cascade, 2K textures. Exceeds 16 GB VRAM while decoding (spills into system RAM, ~8 min, ~18 GB RAM peak); best on 24 GB+ cards."),
     ("high", "1536 cascade, 4K textures. Experimental on 16 GB; may run out of VRAM."),
 ];
 
@@ -68,7 +68,7 @@ pub fn preset(name: &str) -> Option<GenOptions> {
         preprocess_image: true,
         max_num_tokens: if name == "high" { 49152 } else { 32768 },
         low_vram: true,
-        attn_backend: "sdpa".into(),
+        attn_backend: "xformers".into(),
         sparse_structure: Sampler::default(),
         shape: Sampler::default(),
         texture: Sampler::default(),

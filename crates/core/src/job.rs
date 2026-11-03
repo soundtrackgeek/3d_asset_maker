@@ -31,6 +31,9 @@ pub struct Job {
     /// Output file names inside `<job>/out`.
     pub outputs: Vec<String>,
     pub elapsed_secs: f32,
+    /// Peak GPU memory reserved by the worker (MiB), reported after sampling.
+    #[serde(default)]
+    pub peak_vram_mb: Option<u32>,
 }
 
 pub fn now() -> u64 {
@@ -90,6 +93,7 @@ pub fn create(src: &Path, options: GenOptions, mock: bool) -> Result<Job> {
         error: None,
         outputs: vec![],
         elapsed_secs: 0.0,
+        peak_vram_mb: None,
     };
     job.save()?;
     Ok(job)

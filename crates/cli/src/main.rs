@@ -68,7 +68,7 @@ struct GenArgs {
     #[arg(required = true)]
     images: Vec<PathBuf>,
     /// draft | balanced | high
-    #[arg(long, default_value = "balanced")]
+    #[arg(long, default_value = "draft")]
     preset: String,
     /// none | threejs | unity | unreal | godot (caps triangle/texture budget)
     #[arg(long)]

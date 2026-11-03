@@ -140,7 +140,7 @@ async function renderStage() {
   $("#job-detail").innerHTML = `
     <b>${esc(j.name)}</b> <span class="st-${j.status}">${j.status}</span> — ${esc(j.stage)}
     · ${j.options.resolution} · seed ${j.options.seed} · ${j.options.texture_size}px · ${j.options.decimation_target.toLocaleString()} tris
-    ${j.mock ? " · <i>mock</i>" : ""} ${j.elapsed_secs ? ` · ${j.elapsed_secs.toFixed(0)}s` : ""}
+    ${j.mock ? " · <i>mock</i>" : ""} ${j.elapsed_secs ? ` · ${j.elapsed_secs.toFixed(0)}s` : ""} ${j.peak_vram_mb ? ` · peak VRAM ${(j.peak_vram_mb / 1024).toFixed(1)} GB` : ""}
     ${j.error ? `<pre>${esc(j.error)}</pre>` : ""}
     ${j.outputs.length ? `<div class="hint">Files: ${j.outputs.map(esc).join(", ")}, asset.json</div>` : ""}
     <div class="actions">
@@ -258,7 +258,7 @@ async function init() {
   state.engines = o.engines;
   $("#o-preset").innerHTML = o.presets.map((p) => `<option>${esc(p.name)}</option>`).join("");
   $("#o-engine").innerHTML = o.engines.map((e) => `<option>${esc(e.name)}</option>`).join("");
-  state.opts = structuredClone(o.presets.find((p) => p.name === "balanced").options);
+  state.opts = structuredClone(o.presets.find((p) => p.name === "draft").options);
   buildSamplers();
   bindForm();
   fillForm();
